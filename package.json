@@ -1,0 +1,17 @@
+{
+    "name": "com.phyksar.momentum.charmove",
+    "version": "0.1.0",
+    "displayName": "Momentum Character Movement",
+    "unity": "2022.2",
+    "unityRelease": "5f1",
+    "keywords": [
+        "momentum",
+        "character",
+        "movement",
+        "controller"
+    ],
+    "author": {
+        "name": "Phyksar",
+        "email": "phyksar@gmail.com"
+    }
+}
