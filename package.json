@@ -4,6 +4,10 @@
     "displayName": "Momentum Character Movement",
     "unity": "2022.2",
     "unityRelease": "5f1",
+    "dependencies": {
+        "com.unity.inputsystem": "1.4.4",
+        "com.phyksar.momentum.math": "1.0.0"
+    },
     "keywords": [
         "momentum",
         "character",

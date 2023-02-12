@@ -1,0 +1,16 @@
+{
+    "name": "Momentum.CharacterMovement",
+    "rootNamespace": "",
+    "references": [
+        "GUID:805c9a728052cbc4dbce6c98f5395c98"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
