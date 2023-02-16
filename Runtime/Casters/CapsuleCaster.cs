@@ -40,6 +40,7 @@ namespace Momentum.Casters
             Vector3 direction,
             out RaycastHit hitInfo,
             float maxDistance,
+            float contactOffsetDistance,
             float heightReduction = 0.0f)
         {
             GetCapsulePoints(start, out var pointA, out var pointB, heightReduction);
@@ -47,7 +48,7 @@ namespace Momentum.Casters
             var totalHits = Physics.CapsuleCastNonAlloc(
                 pointA,
                 pointB,
-                collider.radius,
+                collider.radius - contactOffsetDistance,
                 direction,
                 raycastHits,
                 maxDistance,
@@ -78,14 +79,14 @@ namespace Momentum.Casters
             return closestId.HasValue;
         }
 
-        public override bool CheckOverlaping(Vector3 start, float heightReduction = 0.0f)
+        public override bool CheckOverlaping(Vector3 start, float contactOffsetDistance, float heightReduction = 0.0f)
         {
             GetCapsulePoints(start, out var pointA, out var pointB, heightReduction);
             var colliders = ArrayPool<Collider>.Shared.Rent(maxHits);
             var totalColliders = Physics.OverlapCapsuleNonAlloc(
                 pointA,
                 pointB,
-                collider.radius,
+                collider.radius - contactOffsetDistance,
                 colliders,
                 layerMask,
                 QueryTriggerInteraction.Ignore);
@@ -122,6 +123,45 @@ namespace Momentum.Casters
             return IsGroundNormal(raycastHit.normal, up, maxStandableAngle);
         }
 
+        public override bool GetFarthestPenetration(Vector3 start, out Vector3 direction, out float distance)
+        {
+            GetCapsulePoints(start, out var pointA, out var pointB);
+            var colliders = ArrayPool<Collider>.Shared.Rent(maxHits);
+            var totalColliders = Physics.OverlapCapsuleNonAlloc(
+                pointA,
+                pointB,
+                collider.radius,
+                colliders,
+                layerMask,
+                QueryTriggerInteraction.Ignore);
+            direction = Vector3.zero;
+            distance = 0.0f;
+            for (var i = 0; i < totalColliders; i++) {
+                var otherCollider = colliders[i];
+                if (otherCollider == collider || otherCollider.transform.IsChildOf(collider.transform)) {
+                    continue;
+                }
+                var penetrationResult = Physics.ComputePenetration(
+                    collider,
+                    start,
+                    collider.transform.rotation,
+                    otherCollider,
+                    otherCollider.transform.position,
+                    otherCollider.transform.rotation,
+                    out var penetrationDirection,
+                    out var penetrationDistance);
+                if (!penetrationResult) {
+                    continue;
+                }
+                if (penetrationDistance > distance) {
+                    distance = penetrationDistance;
+                    direction = penetrationDirection;
+                }
+            }
+            ArrayPool<Collider>.Shared.Return(colliders);
+            return distance != 0.0f;
+        }
+
         public override void DrawGroundPlaneGizmo(ClippingPlane groundPlane)
         {
             var center = collider.transform.position + collider.transform.up * collider.radius;
@@ -130,14 +170,15 @@ namespace Momentum.Casters
         }
 
         private void GetCapsulePoints(
-            in Vector3 origin,
+            in Vector3 position,
             out Vector3 pointA,
             out Vector3 pointB,
             float heightReduction = 0.0f)
         {
             var up = collider.transform.up;
-            pointA = origin + up * collider.radius;
-            pointB = origin + up * Mathf.Max(collider.height - collider.radius - heightReduction, collider.radius);
+            var centerOffset = Mathf.Max(collider.height * 0.5f - collider.radius, 0.0f);
+            pointA = position + collider.transform.rotation * collider.center - up * centerOffset;
+            pointB = pointA + up * Mathf.Max(collider.height - 2.0f * collider.radius - heightReduction, 0.0f);
         }
     }
 }

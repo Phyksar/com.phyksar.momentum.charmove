@@ -11,9 +11,11 @@ namespace Momentum.Casters
             Vector3 direction,
             out RaycastHit hitInfo,
             float maxDistance,
+            float contactOffsetDistance,
             float heightReduction = 0.0f);
-        public abstract bool CheckOverlaping(Vector3 start, float heightReduction = 0.0f);
+        public abstract bool CheckOverlaping(Vector3 start, float contactOffsetDistance, float heightReduction = 0.0f);
         public abstract bool IsGround(RaycastHit raycastHit, float maxStandableAngle, out Vector3 normal);
+        public abstract bool GetFarthestPenetration(Vector3 start, out Vector3 direction, out float distance);
 
         public virtual void DrawGroundPlaneGizmo(ClippingPlane groundPlane)
         { }

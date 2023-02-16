@@ -82,6 +82,7 @@ MonoBehaviour:
   groundSnapDistance: 0.325
   landingSnapDistance: 0.025
   contactOffsetDistance: 0.003
+  unstuckMaxAttempts: 10
   layerMask:
     serializedVersion: 2
     m_Bits: 1

@@ -11,6 +11,7 @@ namespace Momentum.Kinematics
     public struct MoveHelper
     {
         public const int DefaultMaxClipPlanes = 5;
+        public const int DefaultMaxUnstuckAttempts = 10;
         public const float DefaultMaxStandableAngle = 45.0f;
         public const float DefaultRaycastBackoffDistance = 0.003f;
         public const float DefaultBounce = 0.0f;
@@ -50,9 +51,7 @@ namespace Momentum.Kinematics
         /// </returns>
         public bool SweepMove(in Vector3 direction, out RaycastHit hitInfo, float maxDistance)
         {
-            if (caster.SweepTest(position, direction, out hitInfo, maxDistance)) {
-                // Due to float point calculation errors sometimes the end position can be starting in solid
-                // Push back by a small margin so this should never happen
+            if (caster.SweepTest(position, direction, out hitInfo, maxDistance, contactOffsetDistance)) {
                 position += direction * hitInfo.distance;
                 return true;
             }
@@ -87,17 +86,19 @@ namespace Momentum.Kinematics
                     clippingPlanes.StartBump(velocity);
                     timeLeft -= timeLeft * distanceFraction;
                     float bounce;
-                    Vector3 normal;
+                    var normal = hitInfo.normal;
                     if (caster.IsGround(hitInfo, maxStandableAngle, out var groundNormal)) {
-                        position += GetContactOffset(groundNormal, isGround: true);
                         bounce = groundBounce;
                         normal = groundNormal;
+                        position += GetContactOffset(up, groundNormal);
                     } else {
-                        position += GetContactOffset(hitInfo.normal, isGround: false);
                         bounce = wallBounce;
-                        normal = standingOnGround
-                            ? Vector3.ProjectOnPlane(hitInfo.normal, up).normalized
-                            : hitInfo.normal;
+                        if (standingOnGround) {
+                            normal = Vector3.ProjectOnPlane(hitInfo.normal, up).normalized;
+                            position += GetContactOffset(normal, hitInfo.normal);
+                        } else {
+                            position += GetContactOffset(hitInfo.normal);
+                        }
                     }
                     if (!clippingPlanes.TryAdd(ClippingPlane.FromRaycastHit(hitInfo, normal), ref velocity, bounce)) {
                         break;
@@ -133,7 +134,7 @@ namespace Momentum.Kinematics
             var fraction = TryMove(standingOnGround, timeDelta, maxClipPlanes);
             // Move up as much as possible
             if (feetLiftMoveHelper.SweepMove(up, out var upHit, feetLiftHeight)) {
-                feetLiftMoveHelper.position += feetLiftMoveHelper.GetContactOffset(upHit.normal, isGround: false);
+                feetLiftMoveHelper.position += feetLiftMoveHelper.GetContactOffset(upHit.normal);
             }
             // Move across using copied MoveHelper
             var stepFraction = feetLiftMoveHelper.TryMove(standingOnGround, timeDelta, maxClipPlanes);
@@ -149,7 +150,8 @@ namespace Momentum.Kinematics
                 return fraction;
             }
             // Step MoveHelper moved further, use its results
-            position = feetLiftMoveHelper.position + feetLiftMoveHelper.GetContactOffset(downHitNormal, isOnGround);
+            position = feetLiftMoveHelper.position
+                + feetLiftMoveHelper.GetContactOffset(isOnGround ? up : downHitNormal, downHitNormal);
             velocity = feetLiftMoveHelper.velocity;
             return stepFraction;
         }
@@ -171,6 +173,7 @@ namespace Momentum.Kinematics
                 -up,
                 out var hitInfo,
                 feetLiftHeight + snapDistance,
+                contactOffsetDistance,
                 feetLiftHeight);
             if (!snapResult) {
                 return false;
@@ -183,8 +186,8 @@ namespace Momentum.Kinematics
             }
             var snapPosition = position
                 - up * (hitInfo.distance - feetLiftHeight)
-                + GetContactOffset(hitInfo.normal, isGround: true);
-            if (caster.CheckOverlaping(snapPosition)) {
+                + GetContactOffset(up, hitInfo.normal);
+            if (caster.CheckOverlaping(snapPosition, contactOffsetDistance)) {
                 return false;
             }
             position = snapPosition;
@@ -192,12 +195,39 @@ namespace Momentum.Kinematics
             return true;
         }
 
-        private Vector3 GetContactOffset(in Vector3 hitNormal, bool isGround)
+        public bool TryUnstuck(out int attempts, int maxAttempts = DefaultMaxUnstuckAttempts)
         {
-            if (isGround) {
-                return up * (contactOffsetDistance / Mathf.Abs(Vector3.Dot(up, hitNormal)));
+            attempts = 0;
+            if (!caster.CheckOverlaping(position, contactOffsetDistance)) {
+                return true;
             }
-            return hitNormal * contactOffsetDistance;
+            for (; attempts < maxAttempts; attempts++) {
+                if (!caster.GetFarthestPenetration(
+                    position,
+                    out var penetrationDirection,
+                    out var penetrationDistance)) {
+                    break;
+                }
+                position += penetrationDirection * penetrationDistance;
+            }
+            return !caster.CheckOverlaping(position, contactOffsetDistance);
+        }
+
+        /// <summary>
+        /// Due to float point calculation errors sometimes the end position can be starting in solid.
+        /// Push away from <paramref name="normal"/> by <see cref="contactOffsetDistance"/> so this should never happen.
+        /// </summary>
+        private Vector3 GetContactOffset(in Vector3 normal, in Vector3? secondNormal = null)
+        {
+            var contactOffset = contactOffsetDistance;
+            if (secondNormal.HasValue && !secondNormal.Value.Equals(normal)) {
+                var angleRatio = Mathf.Abs(Vector3.Dot(normal, secondNormal.Value));
+                if (angleRatio <= Mathf.Epsilon) {
+                    return Vector3.zero;
+                }
+                contactOffset /= angleRatio;
+            }
+            return normal * contactOffset;
         }
     }
 }

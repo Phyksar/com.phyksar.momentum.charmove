@@ -56,6 +56,9 @@ namespace Momentum.Components
         [Min(0.0f)]
         public float contactOffsetDistance;
 
+        [Min(0)]
+        public int unstuckMaxAttempts;
+
         public LayerMask layerMask;
 
         public bool useGravity;
@@ -114,6 +117,27 @@ namespace Momentum.Components
             shouldJump = true;
         }
 
+        public bool TryUnstuck()
+        {
+            CreateMoveHelper(out var moveHelper);
+            var unstuckResult = moveHelper.TryUnstuck(out var attempts, unstuckMaxAttempts);
+            if (attempts > 0) {
+                var unstuckResultText = unstuckResult ? "succeeded" : "failed";
+                Debug.LogWarning(
+                    $"character {gameObject.name} is stuck, unstuck {unstuckResultText} in {attempts} attempts");
+            }
+            if (!unstuckResult) {
+                // Character is stuck and unstuck algorithm has failed after max attempts
+                // Freeze velocity, giving a chance to unstuck in next fixed update
+                transform.position = moveHelper.position;
+                velocity = Vector3.zero;
+                return false;
+            }
+            transform.position = moveHelper.position;
+            velocity = moveHelper.velocity;
+            return true;
+        }
+
         public static float ComputeJumpVelocity(float jumpHeight, float opposingGravity)
         {
             return Mathf.Sqrt(Mathf.Abs(2.0f * opposingGravity * jumpHeight));
@@ -134,6 +158,12 @@ namespace Momentum.Components
         protected void MoveInDirection(in Vector3 wishDirection, float deltaTime)
         {
             caster.Resize(width, height);
+            if (!TryUnstuck()) {
+                // Check if character is stuck, if true do not allow movement until unstuck algorithm will find
+                // a way to do its job
+                velocity = Vector3.zero;
+                return;
+            }
             UpdateGroundState();
             if (useGravity) {
                 velocity += Physics.gravity * deltaTime;
@@ -144,6 +174,7 @@ namespace Momentum.Components
             } else {
                 MoveInAir(wishDirection, GetSpeedInAir(), deltaTime);
             }
+            UpdateGroundState();
         }
 
         protected void UpdateGroundState()
@@ -154,6 +185,7 @@ namespace Momentum.Components
                 -up,
                 out var groundHit,
                 feetLiftHeight + landingSnapDistance,
+                contactOffsetDistance,
                 feetLiftHeight);
             if (!groundResult || !caster.IsGround(groundHit, maxStandableAngle, out var groundNormal)) {
                 ClearGroundState();
@@ -230,12 +262,7 @@ namespace Momentum.Components
             if (velocity.Equals(Vector3.zero)) {
                 return;
             }
-            var moveHelper = new MoveHelper(transform.position, velocity, transform.up, caster) {
-                maxStandableAngle = maxStandableAngle,
-                contactOffsetDistance = contactOffsetDistance,
-                groundBounce = groundBounce,
-                wallBounce = wallBounce
-            };
+            CreateMoveHelper(out var moveHelper);
             if (allowFeetLift && feetLiftHeight > 0.0f) {
                 moveHelper.TryMoveWithFeetLift(standingOnGround, feetLiftHeight, landingSnapDistance, deltaTime);
             } else {
@@ -244,6 +271,7 @@ namespace Momentum.Components
             if (standingOnGround) {
                 moveHelper.SnapToGround(feetLiftHeight, groundSnapDistance);
             }
+            TryUnstuck();
             transform.position = moveHelper.position;
             velocity = moveHelper.velocity;
         }
@@ -255,6 +283,16 @@ namespace Momentum.Components
             } else {
                 throw new NotSupportedException($"Collider of type {collider.GetType().Name} is not supported");
             }
+        }
+
+        private void CreateMoveHelper(out MoveHelper moveHelper)
+        {
+            moveHelper = new MoveHelper(transform.position, velocity, transform.up, caster) {
+                maxStandableAngle = maxStandableAngle,
+                contactOffsetDistance = contactOffsetDistance,
+                groundBounce = groundBounce,
+                wallBounce = wallBounce
+            };
         }
 
         private void OnEnable()
@@ -296,6 +334,7 @@ namespace Momentum.Components
             groundSnapDistance = DefaultGroundSnapDistance;
             landingSnapDistance = DefaultLandingSnapDistance;
             contactOffsetDistance = MoveHelper.DefaultRaycastBackoffDistance;
+            unstuckMaxAttempts = MoveHelper.DefaultMaxUnstuckAttempts;
             layerMask.value = DefaultLayerMask;
             useGravity = true;
             walkSpeed = new CharacterSpeed {
