@@ -4,6 +4,7 @@ using Momentum.Kinematics;
 using Momentum.Math.Numerics;
 using System;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace Momentum.Components
 {
@@ -76,6 +77,15 @@ namespace Momentum.Components
         [Min(0.0f)]
         public float wallBounce;
 
+        [HideInInspector]
+        public UnityEvent jumped;
+
+        /// <summary>
+        /// The event triggered once the isOnGround flag turns to true with parameter of vertical landing velocity
+        /// </summary>
+        [HideInInspector]
+        public UnityEvent<float> landedOnGround;
+
         public Vector2 viewAngles { get; set; }
         public Vector3 wishDirection { get; set; }
         public Vector3 velocity { get; set; }
@@ -92,6 +102,7 @@ namespace Momentum.Components
         private AbstractCaster caster;
         private Vector3Lerp positionLerp;
         private Vector3 lastPosition;
+        private Vector3 lastVelocity;
         private float breakInterpolationTime;
         private bool shouldJump;
 
@@ -158,6 +169,7 @@ namespace Momentum.Components
         protected void MoveInDirection(in Vector3 wishDirection, float deltaTime)
         {
             caster.Resize(width, height);
+            lastVelocity = velocity;
             if (!TryUnstuck()) {
                 // Check if character is stuck, if true do not allow movement until unstuck algorithm will find
                 // a way to do its job
@@ -180,6 +192,7 @@ namespace Momentum.Components
         protected void UpdateGroundState()
         {
             var up = transform.up;
+            var wasOnGround = isOnGround;
             var groundResult = caster.SweepTest(
                 transform.position + up * feetLiftHeight,
                 -up,
@@ -197,6 +210,9 @@ namespace Momentum.Components
                 transform.position += up * (feetLiftHeight - groundHit.distance + contactOffsetDistance);
             }
             velocity = groundPlane.WithNormal(up).ClipVelocity(velocity);
+            if (!wasOnGround) {
+                landedOnGround?.Invoke(Mathf.Max(Vector3.Dot(velocity - lastVelocity, groundPlane.normal), 0.0f));
+            }
         }
 
         protected void ClearGroundState()
@@ -215,6 +231,7 @@ namespace Momentum.Components
                 ClearGroundState();
                 velocity += transform.up * jumpVelocity;
                 MoveInAir(wishDirection, airSpeed, deltaTime);
+                jumped?.Invoke();
                 return;
             }
             MovePosition(standingOnGround: true, allowFeetLift: true, deltaTime);
