@@ -49,9 +49,20 @@ namespace Momentum.Kinematics
         /// <returns>
         /// True if it hits anything.
         /// </returns>
-        public bool SweepMove(in Vector3 direction, out RaycastHit hitInfo, float maxDistance)
+        public bool SweepMove(
+            in Vector3 direction,
+            out RaycastHit hitInfo,
+            float maxDistance,
+            float heightReduction = 0.0f)
         {
-            if (caster.SweepTest(position, direction, out hitInfo, maxDistance, contactOffsetDistance)) {
+            var sweepResult = caster.SweepTest(
+                position,
+                direction,
+                out hitInfo,
+                maxDistance,
+                contactOffsetDistance,
+                heightReduction);
+            if (sweepResult) {
                 position += direction * hitInfo.distance;
                 return true;
             }
@@ -66,7 +77,11 @@ namespace Momentum.Kinematics
         /// <returns>
         /// Fraction of the desired <see cref="velocity"/> that was traveled.
         /// </returns>
-        public float TryMove(bool standingOnGround, float timeDelta, int maxClipPlanes = DefaultMaxClipPlanes)
+        public float TryMove(
+            bool standingOnGround,
+            float timeDelta,
+            float heightReduction = 0.0f,
+            int maxClipPlanes = DefaultMaxClipPlanes)
         {
             var timeLeft = timeDelta;
             var travelFraction = 0.0f;
@@ -77,7 +92,7 @@ namespace Momentum.Kinematics
                     }
                     var direction = velocity.normalized;
                     var maxDistance = Vector3.Dot(velocity, direction) * timeLeft;
-                    if (!SweepMove(direction, out var hitInfo, maxDistance)) {
+                    if (!SweepMove(direction, out var hitInfo, maxDistance, heightReduction)) {
                         travelFraction += 1.0f;
                         break;
                     }
@@ -122,25 +137,27 @@ namespace Momentum.Kinematics
             float feetLiftHeight,
             float snapDistance,
             float timeDelta,
+            float heightReduction = 0.0f,
             int maxClipPlanes = DefaultMaxClipPlanes)
         {
-            if (feetLiftHeight <= 0.0f) {
-                return TryMove(standingOnGround, timeDelta, maxClipPlanes);
-            }
             var startPosition = position;
             // Make a copy of current MoveHelper
             var feetLiftMoveHelper = this;
             // Do a regular move
-            var fraction = TryMove(standingOnGround, timeDelta, maxClipPlanes);
+            var fraction = TryMove(standingOnGround, timeDelta, heightReduction, maxClipPlanes);
             // Move up as much as possible
-            if (feetLiftMoveHelper.SweepMove(up, out var upHit, feetLiftHeight)) {
+            if (feetLiftMoveHelper.SweepMove(up, out var upHit, feetLiftHeight, heightReduction)) {
                 feetLiftMoveHelper.position += feetLiftMoveHelper.GetContactOffset(upHit.normal);
             }
             // Move across using copied MoveHelper
-            var stepFraction = feetLiftMoveHelper.TryMove(standingOnGround, timeDelta, maxClipPlanes);
+            var stepFraction = feetLiftMoveHelper.TryMove(standingOnGround, timeDelta, heightReduction, maxClipPlanes);
             // Move back down. if it didn't land on anything, landed on a wall or the stepless sweep moved further away,
             // then keep original results of TryMove
-            var downHitResult = feetLiftMoveHelper.SweepMove(-up, out var downHit, feetLiftHeight + snapDistance);
+            var downHitResult = feetLiftMoveHelper.SweepMove(
+                -up,
+                out var downHit,
+                feetLiftHeight + snapDistance,
+                heightReduction);
             var downHitNormal = downHit.normal;
             var isOnGround = downHitResult && caster.IsGround(downHit, maxStandableAngle, out downHitNormal);
             if (!downHitResult
