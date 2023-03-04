@@ -5,7 +5,8 @@ namespace Momentum.Casters
 {
     public abstract class AbstractCaster : ICaster
     {
-        public abstract void Resize(float width, float height);
+        public abstract float width { get; set; }
+        public abstract float height { get; set; }
         public abstract bool SweepTest(
             Vector3 start,
             Vector3 direction,

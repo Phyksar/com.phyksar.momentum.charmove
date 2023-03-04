@@ -75,6 +75,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   width: 0.6
   height: 1.8
+  crouchHeight: 0
+  allowCrouchInAir: 0
   maxStandableAngle: 45
   indirectAccelerationRatio: 0
   feetLiftHeight: 0.3
@@ -99,6 +101,12 @@ MonoBehaviour:
   jumpVelocity: 4.5388327
   groundBounce: 0
   wallBounce: 0
+  jumped:
+    m_PersistentCalls:
+      m_Calls: []
+  landedOnGround:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!114 &4931458264753129824
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -111,7 +119,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 87ce48d476e154941b5aa24c97e05821, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  height: 1.6
+  heightOffset: -0.2
+  heightDampingTime: 0.1
 --- !u!114 &3197151008357118003
 MonoBehaviour:
   m_ObjectHideFlags: 0

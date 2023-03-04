@@ -1,5 +1,4 @@
 using Momentum.Kinematics;
-using System;
 using System.Buffers;
 using UnityEngine;
 
@@ -18,21 +17,30 @@ namespace Momentum.Casters
         private int layerMask;
         private int maxHits;
 
+        public override float width {
+            get {
+                return collider.radius * 2.0f;
+            }
+            set {
+                collider.radius = value * 0.5f;
+                UpdateHeight(collider.height);
+            }
+        }
+
+        public override float height {
+            get {
+                return collider.height;
+            }
+            set {
+                UpdateHeight(value);
+            }
+        }
+
         public CapsuleCaster(CapsuleCollider collider, int layerMask, int maxHits = DefaultMaxHits)
         {
             this.collider = collider;
             this.layerMask = layerMask;
             this.maxHits = maxHits;
-        }
-
-        public override void Resize(float width, float height)
-        {
-            if (collider.direction != CapsuleDirection) {
-                throw new NotSupportedException("The only supported direction is Y-Axis");
-            }
-            collider.height = height;
-            collider.radius = Mathf.Min(width, height) * 0.5f;
-            collider.center = Vector3.up * (height * 0.5f);
         }
 
         public override bool SweepTest(
@@ -179,6 +187,13 @@ namespace Momentum.Casters
             var centerOffset = Mathf.Max(collider.height * 0.5f - collider.radius, 0.0f);
             pointA = position + collider.transform.rotation * collider.center - up * centerOffset;
             pointB = pointA + up * Mathf.Max(collider.height - 2.0f * collider.radius - heightReduction, 0.0f);
+        }
+
+        private void UpdateHeight(float height)
+        {
+            height = Mathf.Max(height, collider.radius * 2.0f);
+            collider.center = Vector3.up * (height * 0.5f);
+            collider.height = height;
         }
     }
 }
