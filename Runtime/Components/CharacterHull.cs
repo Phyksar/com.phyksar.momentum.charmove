@@ -12,6 +12,7 @@ namespace Momentum.Components
     {
         public const float DefaultWidth = 0.6f;
         public const float DefaultHeight = 1.8f;
+        public const float DefaultCrouchingHeight = 1.3f;
         public const float DefaultIndirectAccelerationRatio = 0.0f;
         public const float DefaultFeetLiftHeight = 0.3f;
         public const float DefaultGroundSnapDistance = 0.325f;
@@ -23,12 +24,14 @@ namespace Momentum.Components
         public const float DefaultWalkFriction = 12.0f;
 
         public const float DefaultSprintSpeed = 6.0f;
+        public const float DefaultCrouchSpeed = 3.0f;
 
         public const float DefaultAirSpeed = 0.5f;
         public const float DefaultAirAcceleration = 5.0f;
         public const float DefaultAirFriction = 0.0f;
 
         public const float DefaultJumpHeight = 1.05f;
+        public const float DefaultCrouchJumpHeight = 0.55f;
         public const float DefaultBounce = 0.0f;
 
         [Min(0.0f)]
@@ -36,6 +39,10 @@ namespace Momentum.Components
 
         [Min(0.0f)]
         public float height;
+
+        [Min(0.0f)]
+        public float crouchHeight;
+        public bool allowCrouchInAir;
 
         [Range(0.0f, 90.0f)]
         public float maxStandableAngle;
@@ -67,9 +74,11 @@ namespace Momentum.Components
         public CharacterSpeed walkSpeed;
         public CharacterSpeed airSpeed;
         public float sprintSpeed;
+        public float crouchSpeed;
 
         [Min(0.0f)]
         public float jumpVelocity;
+        public float crouchJumpVelocity;
 
         [Min(0.0f)]
         public float groundBounce;
@@ -90,10 +99,13 @@ namespace Momentum.Components
         public Vector3 wishDirection { get; set; }
         public Vector3 velocity { get; set; }
         public float sprintFactor { get; set; }
+        public float crouchFactor { get; set; }
         public ClippingPlane groundPlane { get; protected set; }
         public Collider groundCollider { get; protected set; }
 
         public bool isOnGround => groundCollider != null;
+        public bool isCrouching => caster.height < height;
+        public float crouchingRatio => Mathf.Clamp01(Mathf.InverseLerp(height, crouchHeight, caster.height));
         public Quaternion localLookRotation => Quaternion.Euler(viewAngles.y, viewAngles.x, 0.0f);
         public Quaternion lookRotation => transform.rotation * localLookRotation;
         public Quaternion moveRotation => transform.rotation * Quaternion.AngleAxis(viewAngles.x, Vector3.up);
@@ -103,6 +115,7 @@ namespace Momentum.Components
         private Vector3Lerp positionLerp;
         private Vector3 lastPosition;
         private Vector3 lastVelocity;
+        private float availableHeight;
         private float breakInterpolationTime;
         private bool shouldJump;
 
@@ -115,7 +128,8 @@ namespace Momentum.Components
                     "CharacterHull requires a CapsuleCollider component before enabling");
             }
             caster = CreateCaster(collider, layerMask.value);
-            caster.Resize(width, height);
+            caster.width = width;
+            caster.height = height;
         }
 
         public void BreakInterpolation()
@@ -157,7 +171,10 @@ namespace Momentum.Components
         protected virtual CharacterSpeed GetSpeedOnGround()
         {
             var speed = walkSpeed;
-            speed.maxSpeed = Mathf.Lerp(walkSpeed.maxSpeed, sprintSpeed, sprintFactor);
+            speed.maxSpeed = Mathf.Lerp(
+                Mathf.Lerp(walkSpeed.maxSpeed, sprintSpeed, sprintFactor),
+                crouchSpeed,
+                crouchingRatio);
             return speed;
         }
 
@@ -166,9 +183,39 @@ namespace Momentum.Components
             return airSpeed;
         }
 
+        protected float GetAvailableHeight(float targetHeight, float heightReduction)
+        {
+            if (targetHeight < caster.height) {
+                return targetHeight;
+            }
+            var hitResult = caster.SweepTest(
+                transform.position,
+                transform.up,
+                out var casterHit,
+                targetHeight - heightReduction + contactOffsetDistance,
+                contactOffsetDistance,
+                caster.height - heightReduction);
+            if (!hitResult) {
+                return targetHeight;
+            }
+            return Mathf.Max(casterHit.distance + heightReduction - contactOffsetDistance, 0.0f);
+        }
+
+        protected void UpdateHeight()
+        {
+            availableHeight = GetAvailableHeight(height, crouchHeight);
+            var targetHeight = Mathf.Lerp(height, crouchHeight, crouchFactor);
+            if (!isOnGround && !allowCrouchInAir) {
+                targetHeight = height;
+            }
+            if (targetHeight <= availableHeight) {
+                caster.height = targetHeight;
+            }
+        }
+
         protected void MoveInDirection(in Vector3 wishDirection, float deltaTime)
         {
-            caster.Resize(width, height);
+            UpdateHeight();
             lastVelocity = velocity;
             if (!TryUnstuck()) {
                 // Check if character is stuck, if true do not allow movement until unstuck algorithm will find
@@ -227,6 +274,7 @@ namespace Momentum.Components
             if (wishDirection != Vector3.zero && specs.maxSpeed != 0.0f) {
                 Accelerate(wishDirection, groundPlane.velocity, specs.maxSpeed, specs.acceleration, deltaTime);
             }
+            var jumpVelocity = Mathf.Lerp(this.jumpVelocity, crouchJumpVelocity, crouchingRatio);
             if (shouldJump && jumpVelocity > 0.0f) {
                 ClearGroundState();
                 velocity += transform.up * jumpVelocity;
@@ -288,6 +336,7 @@ namespace Momentum.Components
             if (standingOnGround) {
                 moveHelper.SnapToGround(feetLiftHeight, groundSnapDistance);
             }
+            UpdateHeight();
             TryUnstuck();
             transform.position = moveHelper.position;
             velocity = moveHelper.velocity;
@@ -320,7 +369,7 @@ namespace Momentum.Components
 
         private void Update()
         {
-            GetComponent<CharacterEyes>()?.UpdateTransform(localLookRotation, Vector3.up);
+            GetComponent<CharacterEyes>()?.UpdateTransform(localLookRotation, Vector3.up, availableHeight);
             if (breakInterpolationTime <= Time.fixedTime) {
                 lastPosition = positionLerp.Evaluate();
                 transform.position = lastPosition;
@@ -344,6 +393,8 @@ namespace Momentum.Components
         {
             width = DefaultWidth;
             height = DefaultHeight;
+            crouchHeight = DefaultCrouchingHeight;
+            allowCrouchInAir = false;
             maxStandableAngle = MoveHelper.DefaultMaxStandableAngle;
             indirectAccelerationRatio = DefaultIndirectAccelerationRatio;
             feetLiftHeight = DefaultFeetLiftHeight;
@@ -360,12 +411,14 @@ namespace Momentum.Components
                 friction = DefaultWalkFriction
             };
             sprintSpeed = DefaultSprintSpeed;
+            crouchSpeed = DefaultCrouchSpeed;
             airSpeed = new CharacterSpeed {
                 maxSpeed = DefaultAirSpeed,
                 acceleration = DefaultAirAcceleration,
                 friction = DefaultAirFriction
             };
             jumpVelocity = ComputeJumpVelocity(DefaultJumpHeight, Vector3.Dot(Physics.gravity, Vector3.up));
+            crouchJumpVelocity = ComputeJumpVelocity(DefaultCrouchJumpHeight, Vector3.Dot(Physics.gravity, Vector3.up));
             groundBounce = DefaultBounce;
             wallBounce = DefaultBounce;
         }

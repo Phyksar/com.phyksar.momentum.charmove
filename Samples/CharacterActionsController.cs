@@ -84,6 +84,11 @@ namespace Momentum.Samples
             characterHull.sprintFactor = value.isPressed ? 1.0f : 0.0f;
         }
 
+        private void OnCrouch(InputValue value)
+        {
+            characterHull.crouchFactor = value.isPressed ? 1.0f : 0.0f;
+        }
+
         private void OnToggleView(InputValue value)
         {
             if (value.isPressed) {

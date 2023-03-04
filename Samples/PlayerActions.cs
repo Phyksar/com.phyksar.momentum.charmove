@@ -66,6 +66,15 @@ namespace Momentum.Samples
                     ""initialStateCheck"": false
                 },
                 {
+                    ""name"": ""Crouch"",
+                    ""type"": ""PassThrough"",
+                    ""id"": ""06f4b5e1-adec-4f90-958d-d874b9e4cfff"",
+                    ""expectedControlType"": """",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false
+                },
+                {
                     ""name"": ""ToggleView"",
                     ""type"": ""Button"",
                     ""id"": ""e4f719b8-8423-4bdc-a25f-85604a4f4a87"",
@@ -229,6 +238,28 @@ namespace Momentum.Samples
                     ""action"": ""Look"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""97eb094c-4f54-4731-a8ef-bba33efc8364"",
+                    ""path"": ""<Keyboard>/ctrl"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""Keyboard/Mouse"",
+                    ""action"": ""Crouch"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""d1a570cd-c13c-486f-9c66-e4a5c3d65af1"",
+                    ""path"": ""<Gamepad>/buttonWest"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""Gamepad"",
+                    ""action"": ""Crouch"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         }
@@ -269,6 +300,7 @@ namespace Momentum.Samples
             m_Character_Look = m_Character.FindAction("Look", throwIfNotFound: true);
             m_Character_Jump = m_Character.FindAction("Jump", throwIfNotFound: true);
             m_Character_Sprint = m_Character.FindAction("Sprint", throwIfNotFound: true);
+            m_Character_Crouch = m_Character.FindAction("Crouch", throwIfNotFound: true);
             m_Character_ToggleView = m_Character.FindAction("ToggleView", throwIfNotFound: true);
         }
 
@@ -333,6 +365,7 @@ namespace Momentum.Samples
         private readonly InputAction m_Character_Look;
         private readonly InputAction m_Character_Jump;
         private readonly InputAction m_Character_Sprint;
+        private readonly InputAction m_Character_Crouch;
         private readonly InputAction m_Character_ToggleView;
         public struct CharacterActions
         {
@@ -342,6 +375,7 @@ namespace Momentum.Samples
             public InputAction @Look => m_Wrapper.m_Character_Look;
             public InputAction @Jump => m_Wrapper.m_Character_Jump;
             public InputAction @Sprint => m_Wrapper.m_Character_Sprint;
+            public InputAction @Crouch => m_Wrapper.m_Character_Crouch;
             public InputAction @ToggleView => m_Wrapper.m_Character_ToggleView;
             public InputActionMap Get() { return m_Wrapper.m_Character; }
             public void Enable() { Get().Enable(); }
@@ -364,6 +398,9 @@ namespace Momentum.Samples
                     @Sprint.started -= m_Wrapper.m_CharacterActionsCallbackInterface.OnSprint;
                     @Sprint.performed -= m_Wrapper.m_CharacterActionsCallbackInterface.OnSprint;
                     @Sprint.canceled -= m_Wrapper.m_CharacterActionsCallbackInterface.OnSprint;
+                    @Crouch.started -= m_Wrapper.m_CharacterActionsCallbackInterface.OnCrouch;
+                    @Crouch.performed -= m_Wrapper.m_CharacterActionsCallbackInterface.OnCrouch;
+                    @Crouch.canceled -= m_Wrapper.m_CharacterActionsCallbackInterface.OnCrouch;
                     @ToggleView.started -= m_Wrapper.m_CharacterActionsCallbackInterface.OnToggleView;
                     @ToggleView.performed -= m_Wrapper.m_CharacterActionsCallbackInterface.OnToggleView;
                     @ToggleView.canceled -= m_Wrapper.m_CharacterActionsCallbackInterface.OnToggleView;
@@ -383,6 +420,9 @@ namespace Momentum.Samples
                     @Sprint.started += instance.OnSprint;
                     @Sprint.performed += instance.OnSprint;
                     @Sprint.canceled += instance.OnSprint;
+                    @Crouch.started += instance.OnCrouch;
+                    @Crouch.performed += instance.OnCrouch;
+                    @Crouch.canceled += instance.OnCrouch;
                     @ToggleView.started += instance.OnToggleView;
                     @ToggleView.performed += instance.OnToggleView;
                     @ToggleView.canceled += instance.OnToggleView;
@@ -414,6 +454,7 @@ namespace Momentum.Samples
             void OnLook(InputAction.CallbackContext context);
             void OnJump(InputAction.CallbackContext context);
             void OnSprint(InputAction.CallbackContext context);
+            void OnCrouch(InputAction.CallbackContext context);
             void OnToggleView(InputAction.CallbackContext context);
         }
     }
