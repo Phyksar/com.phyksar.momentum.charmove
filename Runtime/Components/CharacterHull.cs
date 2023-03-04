@@ -43,6 +43,7 @@ namespace Momentum.Components
         [Min(0.0f)]
         public float crouchHeight;
         public bool allowCrouchInAir;
+        public bool useAutoCrouch;
 
         [Range(0.0f, 90.0f)]
         public float maxStandableAngle;
@@ -208,7 +209,9 @@ namespace Momentum.Components
             if (!isOnGround && !allowCrouchInAir) {
                 targetHeight = height;
             }
-            if (targetHeight <= availableHeight) {
+            if (useAutoCrouch) {
+                caster.height = Mathf.Min(availableHeight, targetHeight);
+            } else if (targetHeight <= availableHeight) {
                 caster.height = targetHeight;
             }
         }
@@ -328,10 +331,16 @@ namespace Momentum.Components
                 return;
             }
             CreateMoveHelper(out var moveHelper);
+            var heightReduction = useAutoCrouch ? (caster.height - crouchHeight) : 0.0f;
             if (allowFeetLift && feetLiftHeight > 0.0f) {
-                moveHelper.TryMoveWithFeetLift(standingOnGround, feetLiftHeight, landingSnapDistance, deltaTime);
+                moveHelper.TryMoveWithFeetLift(
+                    standingOnGround,
+                    feetLiftHeight,
+                    landingSnapDistance,
+                    deltaTime,
+                    heightReduction);
             } else {
-                moveHelper.TryMove(standingOnGround, deltaTime);
+                moveHelper.TryMove(standingOnGround, deltaTime, heightReduction);
             }
             if (standingOnGround) {
                 moveHelper.SnapToGround(feetLiftHeight, groundSnapDistance);
@@ -395,6 +404,7 @@ namespace Momentum.Components
             height = DefaultHeight;
             crouchHeight = DefaultCrouchingHeight;
             allowCrouchInAir = false;
+            useAutoCrouch = false;
             maxStandableAngle = MoveHelper.DefaultMaxStandableAngle;
             indirectAccelerationRatio = DefaultIndirectAccelerationRatio;
             feetLiftHeight = DefaultFeetLiftHeight;
